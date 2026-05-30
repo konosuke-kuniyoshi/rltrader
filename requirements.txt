@@ -8,9 +8,6 @@ numpy==1.26.3
 pandas==2.1.4
 ccxt==4.0.66
 
-# Time series database
-timescaledb==0.16.0
-
 # Gym and RL
 gymnasium==0.29.1
 stable-baselines3==2.2.1
