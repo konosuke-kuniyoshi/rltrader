@@ -1,0 +1,198 @@
+version: '3.9'
+
+services:
+  # TimescaleDB for time-series data storage
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: rltrader-timescaledb
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_DB: ${DB_NAME:-rltrader}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./rltrader/storage/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rltrader-network
+
+  # Redis for feature streaming and signal queues
+  redis:
+    image: redis:7-alpine
+    container_name: rltrader-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rltrader-network
+
+  # Grafana for monitoring
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rltrader-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - timescaledb
+    networks:
+      - rltrader-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rltrader-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - rltrader-network
+
+  # Data collector (Binance WebSocket -> TimescaleDB)
+  collector:
+    build:
+      context: .
+      dockerfile: ./ops/Dockerfile.collector
+    container_name: rltrader-collector
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-rltrader}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rltrader-network
+    restart: unless-stopped
+    volumes:
+      - ./rltrader:/app/rltrader
+      - ./logs:/app/logs
+
+  # Feature streamer (TimescaleDB -> Feature extraction -> Redis)
+  streamer:
+    build:
+      context: .
+      dockerfile: ./ops/Dockerfile.streamer
+    container_name: rltrader-streamer
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-rltrader}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rltrader-network
+    restart: unless-stopped
+    volumes:
+      - ./rltrader:/app/rltrader
+      - ./logs:/app/logs
+
+  # Model trainer (optional, GPU recommended)
+  trainer:
+    build:
+      context: .
+      dockerfile: ./ops/Dockerfile.trainer
+    container_name: rltrader-trainer
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-rltrader}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rltrader-network
+    volumes:
+      - ./rltrader:/app/rltrader
+      - ./models:/app/models
+      - ./logs:/app/logs
+    # Uncomment for GPU support:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Policy executor (testnet trading)
+  executor:
+    build:
+      context: .
+      dockerfile: ./ops/Dockerfile.executor
+    container_name: rltrader-executor
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-rltrader}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rltrader-network
+    restart: unless-stopped
+    volumes:
+      - ./rltrader:/app/rltrader
+      - ./models:/app/models
+      - ./logs:/app/logs
+
+networks:
+  rltrader-network:
+    driver: bridge
+
+volumes:
+  timescaledb_data:
+  redis_data:
+  grafana_data:
+  prometheus_data:

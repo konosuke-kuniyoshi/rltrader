@@ -1,0 +1,25 @@
+# Trainer service Dockerfile (with GPU support)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    python3-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+COPY requirements-trainer.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-trainer.txt
+
+# Copy application code
+COPY rltrader ./rltrader
+
+# Default: sleep (trainer runs via CLI)
+# Override with: docker run ... python -m rltrader.envs.train_ppo --config common/config.yaml
+CMD ["sleep", "infinity"]

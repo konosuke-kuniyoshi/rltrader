@@ -1,0 +1,33 @@
+provisioning:
+  datasources:
+    default.yaml: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /etc/grafana/provisioning/datasources
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: false
+
+  dashboards:
+    default.yaml: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: 'RLTrader'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /etc/grafana/provisioning/dashboards

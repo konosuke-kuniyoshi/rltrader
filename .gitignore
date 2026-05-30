@@ -1,0 +1,16 @@
+# Ignore local env files containing secrets
+ops/.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs
+logs/
+
+# Models and datasets
+models/
+
+# Virtualenv
+venv/
+env/

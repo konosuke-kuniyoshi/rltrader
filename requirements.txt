@@ -1,0 +1,19 @@
+# Base dependencies for all services
+aiohttp==3.9.1
+asyncio==3.4.3
+psycopg2-binary==2.9.9
+redis==5.0.1
+pyyaml==6.0.1
+numpy==1.26.3
+pandas==2.1.4
+ccxt==4.0.66
+
+# Time series database
+timescaledb==0.16.0
+
+# Gym and RL
+gymnasium==0.29.1
+stable-baselines3==2.2.1
+
+# Monitoring
+prometheus-client==0.19.0

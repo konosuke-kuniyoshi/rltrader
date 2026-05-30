@@ -1,0 +1,4 @@
+# Additional dependencies for training service
+torch==2.1.2
+tensorboard==2.15.1
+wandb==0.16.1

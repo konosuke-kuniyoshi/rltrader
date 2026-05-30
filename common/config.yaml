@@ -1,0 +1,62 @@
+exchange: binanceusdm
+symbol: BTCUSDT
+
+# 手数料
+fees:
+  maker: 0.0002
+  taker: 0.0004
+
+# スリッページ（片道）
+slippage:
+  rate: 0.0003
+
+# ファンディングレート（8時間当たり）
+funding:
+  per_8h: 0.0001
+
+# リスク制約
+risk:
+  per_trade_loss_cap: 0.02  # 資産の2%
+  daily_dd_stop: 0.03       # 資産の3%
+  max_leverage: 3.0
+  max_notional_by_equity: 1.0
+
+# 状態更新（特徴量レート）
+state:
+  refresh_sec: 1.0
+  lookback_min: 30
+
+# DB接続
+database:
+  host: timescaledb
+  port: 5432
+  user: postgres
+  password: ${DB_PASSWORD:-postgres}
+  dbname: rltrader
+  sslmode: disable
+
+# Redis
+redis:
+  host: redis
+  port: 6379
+  db: 0
+
+# Binance Futures (テストネット)
+binance:
+  testnet: true
+  api_key: ${BINANCE_API_KEY}
+  api_secret: ${BINANCE_API_SECRET}
+
+# 学習設定
+training:
+  total_timesteps: 1000000
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  seed: 42
+  validation_split: 0.2
+  early_stopping_patience: 5
+  min_sharpe_threshold: 0.5
