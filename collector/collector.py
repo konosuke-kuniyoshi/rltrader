@@ -17,6 +17,9 @@ TimescaleDB / PostgreSQL に保存するためのメインロジックを提供�
 """
 
 import asyncio
+import json
+import os
+import re
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -60,10 +63,40 @@ class Collector:
         self.orderbook_count = 0
     
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration from YAML."""
+        """Load configuration from YAML.
+
+        Tries the given path first; if not found, resolve it relative to the
+        package root so that Docker runs (WORKDIR=/app) can still locate
+        `common/config.yaml` mounted at `/app/rltrader/common/config.yaml`.
+        """
         path = Path(config_path)
+        if not path.is_file():
+            base = Path(__file__).resolve().parents[1]
+            alt = base / config_path
+            if alt.is_file():
+                path = alt
+
         with open(path, 'r') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+
+        return self._expand_env_vars(config)
+
+    def _expand_env_vars(self, value):
+        """Recursively expand environment variables in config values."""
+        if isinstance(value, dict):
+            return {k: self._expand_env_vars(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._expand_env_vars(v) for v in value]
+        if isinstance(value, tuple):
+            return tuple(self._expand_env_vars(v) for v in value)
+        if isinstance(value, str):
+            pattern = re.compile(r"\$\{([^}:]+)(:-([^}]*))?\}")
+            def replace(match):
+                name = match.group(1)
+                default = match.group(3)
+                return os.getenv(name, default if default is not None else "")
+            return pattern.sub(replace, value)
+        return value
     
     async def _on_trade(self, trade: Trade):
         """Handle new trade."""
@@ -95,8 +128,8 @@ class Collector:
     async def _on_orderbook(self, ob: OrderBookSnapshot):
         """Handle orderbook snapshot."""
         try:
-            bids_json = str(ob.bids).replace("'", "\"")
-            asks_json = str(ob.asks).replace("'", "\"")
+            bids_json = json.dumps(ob.bids)
+            asks_json = json.dumps(ob.asks)
             
             query = """
             INSERT INTO orderbook_snapshot (exchange, symbol, ts, best_bid, best_ask, bids, asks)

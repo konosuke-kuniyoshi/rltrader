@@ -264,16 +264,15 @@ class BinanceWSClient:
             self.logger.error(f"Depth update error: {e}, msg={msg}")
     
     async def run(self):
-                """
-                トレードストリームと板差分ストリームを並行して実行します。
+        """トレードストリームと板差分ストリームを並行して実行します。
 
-                - 内部で `initialize()` を呼び、`subscribe_trades` と `subscribe_depth` を
-                    `asyncio.gather` で並列実行します。
-                - 例外が発生してもクリーンアップ (`close`) を行います。
-                """
+        - 内部で `initialize()` を呼び、`subscribe_trades` と `subscribe_depth` を
+          `asyncio.gather` で並列実行します。
+        - 例外が発生してもクリーンアップ (`close`) を行います。
+        """
         if not self.session:
             await self.initialize()
-        
+
         try:
             await asyncio.gather(
                 self.subscribe_trades(),
